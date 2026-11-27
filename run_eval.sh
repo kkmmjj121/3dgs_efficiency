@@ -4,12 +4,8 @@
 # ============================================================
 
 # ---- 설정 ----
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/paths.sh"
 GPU=${1:-2}
-OUT_ROOT=/NasData/home/kmj/blender_exp/output
-DATA_ROOT=/NasData/home/kmj/data
-GS_RENDER=/NasData/home/kmj/soccernet/sn-nvs/submodules/gaussian-splatting/render.py
-GS_METRICS=/NasData/home/kmj/soccernet/sn-nvs/submodules/gaussian-splatting/metrics.py
-CONDA_ENV=gs
 
 SCENES=(chair drums ficus hotdog lego materials mic ship)
 
@@ -27,17 +23,17 @@ for SCENE in "${SCENES[@]}"; do
         echo ""
         echo ">>> Rendering [${SCENE}] [${EXP}]"
 
-        conda run -n ${CONDA_ENV} python ${GS_RENDER} \
-            -s ${DATA_ROOT}/${SCENE} \
-            -m ${MODEL_DIR} \
+        CUDA_VISIBLE_DEVICES=${GPU} conda run -n "${CONDA_ENV}" python "${GS_RENDER}" \
+            -s "${DATA_ROOT}/${SCENE}" \
+            -m "${MODEL_DIR}" \
             -r 1 \
             --white_background \
-            --skip_train \
-            --gpu ${GPU}
+            --eval \
+            --skip_train
 
         echo ">>> Metrics [${SCENE}] [${EXP}]"
-        conda run -n ${CONDA_ENV} python ${GS_METRICS} \
-            -m ${MODEL_DIR}
+        CUDA_VISIBLE_DEVICES=${GPU} conda run -n "${CONDA_ENV}" python "${GS_METRICS}" \
+            -m "${MODEL_DIR}"
     done
 done
 

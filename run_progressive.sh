@@ -8,13 +8,8 @@
 # 사용법: bash run_progressive.sh [GPU번호]  (기본: GPU 3)
 # ============================================================
 
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/paths.sh"
 GPU=${1:-3}
-DATA_ROOT=/NasData/home/kmj/data
-OUT_ROOT=/NasData/home/kmj/blender_exp/output
-GS_TRAIN=/NasData/home/kmj/soccernet/sn-nvs/submodules/gaussian-splatting/train.py
-GS_RENDER=/NasData/home/kmj/soccernet/sn-nvs/submodules/gaussian-splatting/render.py
-GS_METRICS=/NasData/home/kmj/soccernet/sn-nvs/submodules/gaussian-splatting/metrics.py
-CONDA_ENV=gs
 
 STAGE1_ITER=10000
 STAGE2_ITER=20000
@@ -62,9 +57,9 @@ for SCENE in "${SCENES[@]}"; do
     T_S1_START=$(date +%s)
     VRAM_PID=$(start_vram_monitor "${VRAM_LOG_S1}")
 
-    CUDA_VISIBLE_DEVICES=${GPU} conda run -n ${CONDA_ENV} python ${GS_TRAIN} \
-        -s ${DATA_ROOT}/${SCENE} \
-        -m ${OUT_DIR} \
+    CUDA_VISIBLE_DEVICES=${GPU} conda run -n "${CONDA_ENV}" python "${GS_TRAIN}" \
+        -s "${DATA_ROOT}/${SCENE}" \
+        -m "${OUT_DIR}" \
         -r 4 \
         --iterations ${STAGE1_ITER} \
         --test_iterations ${STAGE1_ITER} \
@@ -92,15 +87,15 @@ for SCENE in "${SCENES[@]}"; do
     T_S2_START=$(date +%s)
     VRAM_PID=$(start_vram_monitor "${VRAM_LOG_S2}")
 
-    CUDA_VISIBLE_DEVICES=${GPU} conda run -n ${CONDA_ENV} python ${GS_TRAIN} \
-        -s ${DATA_ROOT}/${SCENE} \
-        -m ${OUT_DIR} \
+    CUDA_VISIBLE_DEVICES=${GPU} conda run -n "${CONDA_ENV}" python "${GS_TRAIN}" \
+        -s "${DATA_ROOT}/${SCENE}" \
+        -m "${OUT_DIR}" \
         -r 2 \
         --iterations ${STAGE2_ITER} \
         --test_iterations ${STAGE2_ITER} \
         --save_iterations ${STAGE2_ITER} \
         --checkpoint_iterations ${STAGE2_ITER} \
-        --start_checkpoint ${CKPT_S1} \
+        --start_checkpoint "${CKPT_S1}" \
         --white_background \
         --eval \
         --disable_viewer
@@ -123,15 +118,15 @@ for SCENE in "${SCENES[@]}"; do
     T_S3_START=$(date +%s)
     VRAM_PID=$(start_vram_monitor "${VRAM_LOG_S3}")
 
-    CUDA_VISIBLE_DEVICES=${GPU} conda run -n ${CONDA_ENV} python ${GS_TRAIN} \
-        -s ${DATA_ROOT}/${SCENE} \
-        -m ${OUT_DIR} \
+    CUDA_VISIBLE_DEVICES=${GPU} conda run -n "${CONDA_ENV}" python "${GS_TRAIN}" \
+        -s "${DATA_ROOT}/${SCENE}" \
+        -m "${OUT_DIR}" \
         -r 1 \
         --iterations ${STAGE3_ITER} \
         --test_iterations ${STAGE3_ITER} \
         --save_iterations ${STAGE3_ITER} \
         --checkpoint_iterations ${STAGE3_ITER} \
-        --start_checkpoint ${CKPT_S2} \
+        --start_checkpoint "${CKPT_S2}" \
         --white_background \
         --eval \
         --disable_viewer
@@ -153,8 +148,8 @@ for SCENE in "${SCENES[@]}"; do
     # 가우시안 개수 & PLY 파일 크기 측정 (최종 stage3 모델 기준)
     PLY_PATH="${OUT_DIR}/point_cloud/iteration_${STAGE3_ITER}/point_cloud.ply"
     if [ -f "${PLY_PATH}" ]; then
-        NUM_GAUSSIANS=$(python3 -c "from plyfile import PlyData; d=PlyData.read('${PLY_PATH}'); print(len(d['vertex']))" 2>/dev/null || echo "0")
-        PLY_SIZE_MB=$(python3 -c "import os; print(round(os.path.getsize('${PLY_PATH}')/1024/1024, 2))" 2>/dev/null || echo "0")
+        NUM_GAUSSIANS=$(conda run -n "${CONDA_ENV}" python -c 'import sys; from plyfile import PlyData; print(len(PlyData.read(sys.argv[1])["vertex"]))' "${PLY_PATH}" 2>/dev/null || echo "0")
+        PLY_SIZE_MB=$(python3 -c 'import os, sys; print(round(os.path.getsize(sys.argv[1])/1024/1024, 2))' "${PLY_PATH}" 2>/dev/null || echo "0")
     else
         NUM_GAUSSIANS=0
         PLY_SIZE_MB=0
@@ -190,17 +185,17 @@ EOF
 
     # 렌더링 (test split, 최종 모델은 2K(-r 1)로 평가)
     echo "  Rendering test split..."
-    CUDA_VISIBLE_DEVICES=${GPU} conda run -n ${CONDA_ENV} python ${GS_RENDER} \
-        -s ${DATA_ROOT}/${SCENE} \
-        -m ${OUT_DIR} \
+    CUDA_VISIBLE_DEVICES=${GPU} conda run -n "${CONDA_ENV}" python "${GS_RENDER}" \
+        -s "${DATA_ROOT}/${SCENE}" \
+        -m "${OUT_DIR}" \
         -r 1 \
         --white_background \
         --eval \
         --skip_train
 
     echo "  Computing metrics..."
-    CUDA_VISIBLE_DEVICES=${GPU} conda run -n ${CONDA_ENV} python ${GS_METRICS} \
-        -m ${OUT_DIR}
+    CUDA_VISIBLE_DEVICES=${GPU} conda run -n "${CONDA_ENV}" python "${GS_METRICS}" \
+        -m "${OUT_DIR}"
 
     echo "<<< [${SCENE}] Done   $(date '+%Y-%m-%d %H:%M:%S')"
 done

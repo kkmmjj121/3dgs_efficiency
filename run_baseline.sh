@@ -5,13 +5,8 @@
 # 사용법: bash run_baseline.sh [GPU번호]  (기본: GPU 2)
 # ============================================================
 
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/paths.sh"
 GPU=${1:-2}
-DATA_ROOT=/NasData/home/kmj/data
-OUT_ROOT=/NasData/home/kmj/blender_exp/output
-GS_TRAIN=/NasData/home/kmj/soccernet/sn-nvs/submodules/gaussian-splatting/train.py
-GS_RENDER=/NasData/home/kmj/soccernet/sn-nvs/submodules/gaussian-splatting/render.py
-GS_METRICS=/NasData/home/kmj/soccernet/sn-nvs/submodules/gaussian-splatting/metrics.py
-CONDA_ENV=gs
 ITERS=30000
 
 SCENES=(chair drums ficus hotdog lego materials mic ship)
@@ -56,9 +51,9 @@ for SCENE in "${SCENES[@]}"; do
     # VRAM 모니터링 시작
     VRAM_PID=$(start_vram_monitor "${VRAM_LOG}")
 
-    CUDA_VISIBLE_DEVICES=${GPU} conda run -n ${CONDA_ENV} python ${GS_TRAIN} \
-        -s ${DATA_ROOT}/${SCENE} \
-        -m ${OUT_DIR} \
+    CUDA_VISIBLE_DEVICES=${GPU} conda run -n "${CONDA_ENV}" python "${GS_TRAIN}" \
+        -s "${DATA_ROOT}/${SCENE}" \
+        -m "${OUT_DIR}" \
         -r 1 \
         --iterations ${ITERS} \
         --test_iterations ${ITERS} \
@@ -89,8 +84,8 @@ for SCENE in "${SCENES[@]}"; do
     # 가우시안 개수 & PLY 파일 크기 측정
     PLY_PATH="${OUT_DIR}/point_cloud/iteration_${ITERS}/point_cloud.ply"
     if [ -f "${PLY_PATH}" ]; then
-        NUM_GAUSSIANS=$(python3 -c "from plyfile import PlyData; d=PlyData.read('${PLY_PATH}'); print(len(d['vertex']))" 2>/dev/null || echo "0")
-        PLY_SIZE_MB=$(python3 -c "import os; print(round(os.path.getsize('${PLY_PATH}')/1024/1024, 2))" 2>/dev/null || echo "0")
+        NUM_GAUSSIANS=$(conda run -n "${CONDA_ENV}" python -c 'import sys; from plyfile import PlyData; print(len(PlyData.read(sys.argv[1])["vertex"]))' "${PLY_PATH}" 2>/dev/null || echo "0")
+        PLY_SIZE_MB=$(python3 -c 'import os, sys; print(round(os.path.getsize(sys.argv[1])/1024/1024, 2))' "${PLY_PATH}" 2>/dev/null || echo "0")
     else
         NUM_GAUSSIANS=0
         PLY_SIZE_MB=0
@@ -115,9 +110,9 @@ EOF
 
     # 렌더링 (test split)
     echo "    Rendering test split..."
-    CUDA_VISIBLE_DEVICES=${GPU} conda run -n ${CONDA_ENV} python ${GS_RENDER} \
-        -s ${DATA_ROOT}/${SCENE} \
-        -m ${OUT_DIR} \
+    CUDA_VISIBLE_DEVICES=${GPU} conda run -n "${CONDA_ENV}" python "${GS_RENDER}" \
+        -s "${DATA_ROOT}/${SCENE}" \
+        -m "${OUT_DIR}" \
         -r 1 \
         --white_background \
         --eval \
@@ -125,8 +120,8 @@ EOF
 
     # 지표 측정 (PSNR / SSIM / LPIPS)
     echo "    Computing metrics..."
-    CUDA_VISIBLE_DEVICES=${GPU} conda run -n ${CONDA_ENV} python ${GS_METRICS} \
-        -m ${OUT_DIR}
+    CUDA_VISIBLE_DEVICES=${GPU} conda run -n "${CONDA_ENV}" python "${GS_METRICS}" \
+        -m "${OUT_DIR}"
 
     echo "<<< [${SCENE}] Done   $(date '+%Y-%m-%d %H:%M:%S')"
 done
@@ -134,4 +129,4 @@ done
 echo ""
 echo "============================================"
 echo "All baseline training done!"
-echo "Summary: bash /NasData/home/kmj/blender_exp/summarize.sh"
+echo "Summary: python \"${SCRIPT_DIR}/summarize.py\" --output-dir \"${OUT_ROOT}\""

@@ -2,14 +2,17 @@
 """
 summarize.py
 - 각 씬/실험의 train_stats.json + results.json을 읽어 논문용 비교표 출력
-사용법: python /NasData/home/kmj/blender_exp/summarize.py
+사용법: python summarize.py [--output-dir PATH]
 """
 
+import argparse
 import json
 import os
 from pathlib import Path
 
-OUT_ROOT = Path("/NasData/home/kmj/blender_exp/output")
+parser = argparse.ArgumentParser(description="Compare baseline and progressive 3DGS results")
+parser.add_argument("--output-dir", type=Path, default=Path(os.environ.get("OUT_ROOT", Path(__file__).resolve().parent / "output")))
+OUT_ROOT = parser.parse_args().output_dir.expanduser().resolve()
 SCENES   = ["chair", "drums", "ficus", "hotdog", "lego", "materials", "mic", "ship"]
 EXPS     = {
     "baseline_2k_30k":   "Baseline (2K, 30k)",
